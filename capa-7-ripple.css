@@ -1,0 +1,38 @@
+/* ============================================================
+ * CAPA 7 · ONDA AL TOCAR / RIPPLE  (JHONNY VOTACIÓN) — DECORATIVA LIGERA
+ *
+ * Qué hace: la onda de tinta estilo Android nace donde pusiste el
+ * dedo, dentro de los botones.
+ *
+ * Instalación — pegar en index.html, en el <head>, DESPUÉS de
+ * <link rel="stylesheet" href="style.css" />:
+ *   <link rel="stylesheet" href="capa-7-ripple.css" />
+ *
+ * Pareja: capa-7-ripple.js  (los dos o ninguno).
+ * Notas: se apaga con "reducir movimiento". Para quitarla, borra
+ * las dos líneas (este CSS y su JS).
+ * ============================================================ */
+
+.na-rip-host { overflow: hidden; }
+
+.na-rip {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: scale(0);
+  opacity: .35;
+  background: currentColor;
+  animation: na-rip-go .55s cubic-bezier(.22, 1, .36, 1) forwards;
+  z-index: 0;
+}
+
+/* En el botón azul la tinta va en blanco (currentColor ya es blanco allí) */
+.btn-primary .na-rip { opacity: .3; }
+
+@keyframes na-rip-go {
+  to { transform: scale(1); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .na-rip { display: none !important; animation: none !important; }
+}

@@ -1,0 +1,77 @@
+/* ============================================================
+ * CAPA 1 · MICRO-EFECTOS BASE  (JHONNY VOTACIÓN) — FUNCIONAL
+ *
+ * Qué hace: presión con resorte en los botones, campo que "sube"
+ * al enfocarse, hoja de documento con curva más viva y aparición
+ * suave de cada pantalla.
+ *
+ * Instalación — pegar en index.html, en el <head>, JUSTO DEBAJO de
+ * <link rel="stylesheet" href="style.css" />:
+ *   <link rel="stylesheet" href="capa-1-micro.css" />
+ *
+ * Pareja: ninguna (capa autónoma).
+ * Notas:
+ *  - No toca style.css. Para quitarla: borra esa línea.
+ *  - Se apaga entera con "reducir movimiento" del sistema.
+ *  - No animamos el <video> del escáner ni el recuadro .cam:
+ *    mover un video en pleno encuadre parpadea en algunos Android.
+ *  - El girador global (#ios-loader) y .res.pop se dejan como están.
+ * ============================================================ */
+
+/* ---------- Botones: presión con resorte ---------- */
+.btn {
+  transition:
+    transform .18s cubic-bezier(.34, 1.56, .64, 1),
+    box-shadow .2s ease,
+    background .2s ease;
+}
+.btn:active:not([disabled]) {
+  transform: scale(.955);
+  transition-duration: .06s;
+}
+
+/* ---------- Campo de documento: sube 1px al enfocar ---------- */
+.input {
+  transition:
+    border-color .15s ease,
+    box-shadow .15s ease,
+    transform .18s cubic-bezier(.34, 1.56, .64, 1);
+}
+.input:focus { transform: translateY(-1px); }
+
+/* ---------- Hoja (modal de documento): misma entrada, mejor curva ---------- */
+.sheet {
+  animation: na-sheet-up .3s cubic-bezier(.22, 1, .36, 1) !important;
+}
+@keyframes na-sheet-up {
+  from { transform: translateY(22px); opacity: 0; }
+  to   { transform: none;             opacity: 1; }
+}
+
+/* ---------- Aparición de pantalla ---------- */
+#app > .login-wrap { animation: na-rise .26s cubic-bezier(.22, 1, .36, 1) both; }
+#app > .appbar     { animation: na-fade .22s ease-out both; }
+#app > .pad        { animation: na-fade .28s ease-out both; }   /* solo opacidad: adentro va el video */
+
+@keyframes na-rise {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: none;             opacity: 1; }
+}
+@keyframes na-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---------- Respeto a "reducir movimiento" ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .input {
+    transition: background .2s ease, border-color .15s ease !important;
+  }
+  .btn:active:not([disabled]),
+  .input:focus { transform: none !important; }
+  .sheet,
+  #app > .login-wrap,
+  #app > .appbar,
+  #app > .pad { animation: none !important; }
+}
