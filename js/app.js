@@ -143,7 +143,8 @@ async function recargarVersion(v) {
 async function checkVersion() {
   if (__verInFlight) return; __verInFlight = true;
   try {
-    const r = await fetch('./js/version.js?t=' + Date.now(), { cache: 'no-store' });
+    let r;
+    try { r = await fetch('./js/version.js?t=' + Date.now(), { cache: 'no-store' }); } catch (e) { return; }   /* sin red: se revisa al volver */
     if (!r.ok) return;
     const raw = await r.text();
     const m = raw.match(/version['"]?\s*[:=]\s*['"]([^'"]+)['"]/i) || raw.match(/(\d{4}\.\d{2}\.\d{2}\.\d+|\d+\.\d+(?:\.\d+)?)/);
@@ -271,6 +272,7 @@ function viewEscaner() {
 
       <button id="sc-toggle" class="btn btn-primary btn-block">▶️ Activar escaneo</button>
       <button id="sc-doc" class="btn btn-ghost btn-block">🆘 Ayuda: registrar con DOCUMENTO</button>
+      <button type="button" id="sc-copia" class="copia-caja"></button>
 
       ${footBrand()}
     </div>`;
@@ -279,12 +281,14 @@ function viewEscaner() {
   $('#sc-toggle').onclick = () => (SCAN.on ? scanStop() : scanStart());
   $('#sc-doc').onclick = sheetDocumento;
   $('#sc-vivo').onclick = sheetRendimiento;
+  $('#sc-copia').onclick = sheetCopia;
   $$('#sc-modo button').forEach(b => { b.onclick = () => cambiarModo(b.dataset.m === 'lote'); });
   pintarToggle();
   pintarModo();
   pintarLista();
   pintarCinta();
   pintarVivo();
+  pintarCopia();
 }
 
 function pintarToggle() {
@@ -368,9 +372,11 @@ function alEstadoCola(tipo, d) {
     resultado('idle', d.recuperadas === 1 ? '1 LECTURA RECUPERADA' : d.recuperadas + ' LECTURAS RECUPERADAS', 'Quedaron guardadas de antes y se están registrando.');
   }
   if (tipo === 'reintento' || tipo === 'senal') {
-    (d.item ? d.item.ids : []).forEach(id => marcarItem(id, 'esperando', null, ESC.sinSenal() ? 'Sin señal · guardado, se envía solo' : 'Reintentando…'));
+    (d.item ? d.item.ids : []).forEach(id => marcarItem(id, sinSenalAhora() ? 'pend' : 'esperando', null, sinSenalAhora() ? 'Pendiente · se sube solo al volver la señal' : 'Reintentando…'));
+    if (d.item && d.item.doc) marcarItem('DOC ' + d.item.doc, sinSenalAhora() ? 'pend' : 'esperando', null, sinSenalAhora() ? 'Pendiente · se sube solo al volver la señal' : 'Reintentando…');
   }
   pintarCinta();
+  tiraActualizar();
 }
 
 /* Sonido y panel grande: una sola vez por respuesta */
@@ -577,13 +583,37 @@ function procesarLectura(raw) {
   if (SCAN.vistos.size > 400) SCAN.vistos.clear();
 
   if (!p) { sonar('err'); vibrar(200); resultado('err', 'QR no reconocido', `Ese código no es de la app de ${MV.candidato}.`); return; }
-  if (p.documento) { ESC.documento(p.documento); agregarItem('DOC ' + p.documento, 'Documento ' + p.documento); return; }
+  if (p.documento) { registrarDoc(p.documento); return; }
+  const { c } = avisoLocal(p.id, '');
+  if (sinSenalAhora() && c && !c.mio) { noVotaAqui(p.id, c); return; }
   const r = ESC.leer(p.id);
   if (r.estado === 'hecho') { avisarHecho(p.id, r.hecho); return; }
   if (r.estado === 'enCola') { resultado('idle', 'YA ESTÁ EN COLA', 'Esa tarjeta ya se leyó y se está registrando.'); return; }
   vibrar(30);
-  agregarItem(p.id);
-  resultado('idle', 'LEÍDO · REGISTRANDO…', ESC.sinSenal() ? 'Sin señal: queda guardado y se envía solo.' : 'Puedes pasar a la siguiente persona.');
+  agregarItem(p.id, c ? c.nombre : '');
+  avisarEncolado(c);
+}
+
+/* 08/11/2026 · Sin señal: lo que dice la copia del teléfono, al instante */
+function avisarEncolado(c) {
+  if (!sinSenalAhora()) { resultado('idle', 'LEÍDO · REGISTRANDO…', c ? c.nombre : 'Puedes pasar a la siguiente persona.'); return; }
+  if (c) { sonar('ok'); vibrar(60); resultado('ok', 'PENDIENTE · SE SUBE SOLO', nombreYPuesto(c)); return; }
+  if (c === null) { sonar('info'); vibrar(80); resultado('warn', 'NO ESTÁ EN LA COPIA DEL TELÉFONO', 'Quedó guardado: se confirma al volver la señal.'); return; }
+  resultado('idle', 'GUARDADO SIN SEÑAL', 'Se registra solo cuando vuelva la señal.');
+}
+function noVotaAqui(id, c) {
+  sonar('err'); vibrar([120, 60, 120]);
+  resultado('err', 'NO VOTA EN ' + MV.municipio.toUpperCase(), c.nombre + ' · según la copia del teléfono');
+  agregarItem(id, c.nombre);
+  marcarItem(id, 'fuera', c.nombre, 'No vota en ' + MV.municipio + ' (copia del teléfono) · no se sube');
+}
+/* Registro por documento (QR con solo el número o el botón de ayuda) */
+function registrarDoc(doc) {
+  const { c } = avisoLocal('', doc);
+  if (sinSenalAhora() && c && !c.mio) { noVotaAqui('DOC ' + doc, c); return; }
+  ESC.documento(doc);
+  agregarItem('DOC ' + doc, c ? c.nombre : 'Documento ' + doc);
+  avisarEncolado(c);
 }
 
 /* Ya registrado en ESTE equipo hoy: se contesta sin viajar */
@@ -603,8 +633,10 @@ function encolarLote(lecturas, vw, vh) {
     else if (ESC.hecho(id)) kind = 'ya';
     if (lec.pts && lec.pts.length === 4) geos.push({ pts: lec.pts, vw: vw, vh: vh, t: ahora, kind: kind });
     if (!id) return;
+    const { c } = avisoLocal(id, '');
+    if (sinSenalAhora() && c && !c.mio) { if (!SCAN.lista.some(x => x.id === id)) noVotaAqui(id, c); return; }
     const r = ESC.leerLote(id);
-    if (r.estado === 'nuevo') { vibrar(20); agregarItem(id); }
+    if (r.estado === 'nuevo') { vibrar(20); agregarItem(id, c ? c.nombre : ''); }
   });
   SCAN.geos = geos.length ? geos : null;
   SCAN.geo = geos.length ? geos[0] : null;
@@ -629,19 +661,20 @@ function pintarModo() {
 /* ---------- Lista de lecturas (los dos modos) ---------- */
 function agregarItem(id, nom) {
   SCAN.lista = SCAN.lista.filter(x => x.id !== id);
-  SCAN.lista.unshift({ id: id, estado: 'esperando', nombre: nom || '', sub: ESC.sinSenal() ? 'Sin señal · guardado, se envía solo' : 'Leído · registrando…' });
+  const sin = sinSenalAhora();
+  SCAN.lista.unshift({ id: id, estado: sin ? 'pend' : 'esperando', nombre: nom || '', sub: sin ? 'Pendiente · se sube solo al volver la señal' : 'Leído · registrando…' });
   if (SCAN.lista.length > LISTA_MAX) SCAN.lista.length = LISTA_MAX;
   pintarLista(); pintarCinta();
 }
 function marcarItem(id, estado, nombre, sub) {
   let it = SCAN.lista.find(x => x.id === id);
-  if (!it) { if (estado === 'esperando') return; agregarItem(id); it = SCAN.lista[0]; }
+  if (!it) { if (estado === 'esperando' || estado === 'pend') return; agregarItem(id); it = SCAN.lista[0]; }
   it.estado = estado;
   if (nombre) it.nombre = nombre;
   if (sub != null) it.sub = sub;
   pintarLista();
 }
-const LISTA_ICO = { esperando: '⏳', ok: '✅', ya: '⚠️', fuera: '⛔', malo: '⛔' };
+const LISTA_ICO = { esperando: '⏳', pend: '📶', ok: '✅', ya: '⚠️', fuera: '⛔', malo: '⛔' };
 let _pintarListaPend = false;
 function pintarLista() {
   if (_pintarListaPend) return;
@@ -666,7 +699,7 @@ function pintarCinta() {
   const n = ESC.pendientes(), sin = ESC.sinSenal();
   cinta.classList.toggle('enviando', n > 0 && !sin);
   cinta.classList.toggle('sin-senal', sin);
-  pend.textContent = sin ? ('📶 Sin señal · ' + n + ' guardada' + (n === 1 ? '' : 's')) : (n ? n + ' por confirmar' : '');
+  pend.textContent = sin ? ('📶 Sin señal · ' + n + ' pendiente' + (n === 1 ? '' : 's')) : (n ? n + ' por confirmar' : '');
   pintarContador();
 }
 function pintarContador() {
@@ -718,6 +751,7 @@ function sheetRendimiento() {
       fila('Envíos · reintentos', m.envios + ' · ' + m.reintentos),
       fila('Respuesta más pesada', m.kbMax + ' KB'),
       fila('Pendientes en cola', ESC.pendientes()),
+      fila('Copia sin señal', (() => { const e = COPIA.estado(), m = COPIA.medida(); return e.hay ? Number(e.n).toLocaleString('es-CO') + ' personas · ' + COPIA.hace(e.edad) + (m ? ' · bajó en ' + m.ms + ' ms, ' + m.kb + ' KB' : '') : 'no hay'; })()),
       fila('Cámara reabierta sola', SCAN.reinicios),
       fila('Total en vivo', VIVO.vivo ? 'conectado' : 'sin Firebase')
     ].join('')}</table>
@@ -772,10 +806,8 @@ function sheetDocumento() {
     const doc = onlyDig(val('dc-doc'));
     if (!/^\d{6,10}$/.test(doc)) { toast('El documento debe tener de 6 a 10 dígitos', 'err'); return; }
     enviado = true;
-    ESC.documento(doc);
-    agregarItem('DOC ' + doc, 'Documento ' + doc);
-    resultado('idle', 'DOCUMENTO EN COLA', 'Se registra solo; el resultado aparece en la lista.');
     salir();
+    registrarDoc(doc);
   };
   $('#dc-ok', sh).onclick = enviar;
   inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enviar(); } });
@@ -784,7 +816,156 @@ function sheetDocumento() {
 /* ============================================================
    ARRANQUE  (gate de instalación)
    ============================================================ */
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+/* 08/11/2026 · regla de publicación (modo fresco): el SW se registra sin la
+   caché HTTP (updateViaCache 'none') y pide update() al cargar; si un SW nuevo
+   toma el control de una página que ya tenía uno, se recarga UNA vez por
+   versión (freno en sessionStorage). Nunca con el escáner encendido ni con
+   una hoja abierta. La primera instalación no recarga. */
+if ('serviceWorker' in navigator) window.addEventListener('load', () => {
+  const habia = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(r => { try { r.update(); } catch (e) {} }).catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!habia) return;
+    const k = nsKey('jp_sw_cc_' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''));
+    try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { return; }
+    if (window.RED && RED.escriturasEnVuelo > 0) return;
+    if (SCAN.on) return;
+    const capa = document.getElementById('layer');
+    if (capa && capa.children.length) return;
+    location.reload();
+  });
+});
+
+/* ============================================================
+   SIN CONEXIÓN (08/11/2026) — bloque IGUAL en VOTACIÓN y ASISTENCIAS
+   · Tira "Sin conexión · N en cola" bajo el encabezado (sin-red.js, la
+     misma pieza de PERDOMO/PRIV). Solo sondea mientras no hay red.
+   · Copia local (copia-local.js): con la clave del escáner se baja una
+     vez y da el nombre al instante, avisa QR desconocidos y, en VOTACIÓN,
+     quién no vota en el municipio. Lo que se registra lo decide el CORE.
+   · Lo que necesita servidor se ve apagado con su razón.
+   ============================================================ */
+const ICO_COPIA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>';
+const ICO_LISTA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+function enLinea() { return !window.SINRED || SINRED.enLinea(); }
+function sinSenalAhora() { return !enLinea() || (window.ESC && ESC.sinSenal()); }
+
+function sinRedIniciar() {
+  if (window.SINRED) {
+    SINRED.montar({ dueno: duenoPendientes, textoSin: textoTira(), explicar: sheetSinSenal, abrirPendientes: abrirPendientes });
+    SINRED.al(() => { tiraActualizar(); pintarCopia(); pintarBotonesRed(); pintarNuevos(); });
+  }
+  if (window.COPIA) { COPIA.al(pintarCopia); COPIA.iniciar({ api: API_URL, extra: [SOUNDS.ok, SOUNDS.info, SOUNDS.err, VENDOR.jsqr, 'manifest.json'] }).then(pintarCopia).catch(() => {}); }
+}
+function textoTira() {
+  const n = window.ESC ? ESC.pendientes() : 0;
+  return 'Sin conexión' + (n ? ' · ' + n + ' lectura' + (n === 1 ? '' : 's') + ' en cola' : '');
+}
+function tiraActualizar() { if (window.SINRED) SINRED.montar({ textoSin: textoTira() }); }
+
+/* Caja de la copia (vista del escáner) */
+function pintarCopia() {
+  const b = $('#sc-copia'); if (!b || !window.COPIA) return;
+  const e = COPIA.estado(), red = enLinea();
+  let t, s, ir;
+  if (e.hay) {
+    t = 'Listo para trabajar sin señal';
+    s = Number(e.n).toLocaleString('es-CO') + ' personas en el teléfono · ' + COPIA.hace(e.edad);
+    ir = red ? 'Actualizar' : '';
+  } else {
+    t = 'Prepararme para salir sin señal';
+    s = red ? 'Baja la copia una vez: sin señal verás el nombre al instante.' : 'Necesita señal. Sin copia se registra igual, pero sin nombre al instante.';
+    ir = red ? 'Preparar' : '';
+  }
+  b.className = 'copia-caja' + (e.hay ? ' lista' : '');
+  b.disabled = !red && !e.hay;
+  b.innerHTML = `<span class="copia-ico">${e.hay ? ICO_LISTA : ICO_COPIA}</span><span class="copia-txt"><span class="copia-t">${esc(t)}</span><span class="copia-s">${esc(s)}</span></span>${ir ? `<span class="copia-ir">${esc(ir)}</span>` : ''}`;
+}
+
+/* Hoja de la copia: clave (la primera vez), actualizar o borrar */
+function sheetCopia() {
+  if (!window.COPIA) return;
+  const e = COPIA.estado();
+  SCAN.pausa = true;
+  const sh = openSheet(`
+    <div class="grip"></div>
+    <h2 class="h2" style="margin-bottom:4px;">Trabajar sin señal</h2>
+    <p class="small muted" style="margin-bottom:12px;">${e.hay
+      ? `Copia lista: ${Number(e.n).toLocaleString('es-CO')} personas · ${esc(COPIA.hace(e.edad))}. Se renueva sola al abrir la app con señal.`
+      : 'Se baja una copia de la base para ver el nombre al instante sin señal. Lo que escanees se sube solo cuando vuelva la señal.'}</p>
+    ${e.clave ? '' : `<label class="field"><span>Clave del escáner</span>
+      <input class="input" id="cp-clave" type="password" autocomplete="off" inputmode="numeric" placeholder="La entrega la campaña" /></label>`}
+    <p class="small" id="cp-msg" style="min-height:18px;margin:8px 2px 0;"></p>
+    <div class="stack" style="margin-top:12px;">
+      <button class="btn btn-primary btn-block" id="cp-ok"${enLinea() ? '' : ' disabled'}>${e.hay ? 'Actualizar ahora' : 'Bajar la copia'}</button>
+      ${enLinea() ? '' : '<p class="razon-red">Sin conexión: la copia se baja cuando vuelva la señal.</p>'}
+      ${e.hay ? '<button class="btn btn-quiet btn-block" id="cp-borrar">Borrar la copia de este teléfono</button>' : ''}
+      <button class="btn btn-quiet btn-block" id="cp-no">Cerrar</button>
+    </div>`);
+  const salir = () => { closeLayer(); SCAN.pausa = false; };
+  $('#cp-no', sh).onclick = salir;
+  const msg = $('#cp-msg', sh), ok = $('#cp-ok', sh);
+  const bajar = async () => {
+    if (ok.disabled) return;
+    const cl = $('#cp-clave', sh) ? $('#cp-clave', sh).value.trim() : '';
+    if ($('#cp-clave', sh) && !cl) { msg.textContent = 'Escribe la clave del escáner.'; return; }
+    saving(ok, true); msg.textContent = 'Bajando la copia…';
+    try {
+      const r = await COPIA.preparar(cl);
+      const m = COPIA.medida();
+      sonar('ok'); vibrar(60);
+      toast('Copia lista: ' + Number(r.n).toLocaleString('es-CO') + ' personas' + (m ? ' · ' + m.ms + ' ms' : ''), 'ok');
+      salir();
+    } catch (err) {
+      sonar('err');
+      msg.textContent = (err && err.red) ? 'Sin conexión. Inténtalo con señal.' : String((err && err.message) || err);
+      saving(ok, false);
+      if (err && err.claveMala && !$('#cp-clave', sh)) { salir(); sheetCopia(); }   /* la clave guardada ya no sirve: se pide otra */
+    }
+  };
+  ok.onclick = bajar;
+  const inp = $('#cp-clave', sh);
+  if (inp) { inp.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); bajar(); } }); setTimeout(() => { try { inp.focus(); } catch (x) {} }, 60); }
+  const bb = $('#cp-borrar', sh);
+  if (bb) bb.onclick = () => { if (!confirm('¿Borrar la copia de este teléfono? Sin señal ya no verás el nombre al instante.')) return; COPIA.borrar(); toast('Copia borrada de este teléfono'); salir(); };
+}
+
+/* Al tocar la tira: qué se puede hacer sin señal */
+function sheetSinSenal() {
+  const e = window.COPIA ? COPIA.estado() : { hay: false };
+  const n = window.ESC ? ESC.pendientes() : 0;
+  const sh = openSheet(`
+    <div class="grip"></div>
+    <h2 class="h2" style="margin-bottom:6px;">Estás sin conexión</h2>
+    <p class="small muted">${n ? n + ' lectura' + (n === 1 ? '' : 's') + ' en cola: se suben solas, sin repetir, cuando vuelva la señal.' : 'Lo que escanees queda guardado en este teléfono y se sube solo cuando vuelva la señal.'}</p>
+    <ul class="sheet-lista">
+      <li>Escanear QR, uno a uno o en bloque.</li>
+      <li>Registrar con documento cuando el QR no lee.</li>
+      ${SR_TEXTOS.extraSi}
+      <li>${e.hay ? 'Ver el nombre al instante (copia del teléfono).' : 'Sin copia en el teléfono: se registra igual, sin nombre al instante.'}</li>
+      ${SR_TEXTOS.extraNo}
+      <li class="no">Bajar o actualizar la copia: necesita señal.</li>
+    </ul>
+    <div class="stack" style="margin-top:14px;"><button class="btn btn-quiet btn-block" id="ss-ok">Entendido</button></div>`);
+  $('#ss-ok', sh).onclick = closeLayer;
+}
+
+/* Lectura que entra a la cola: qué decir al instante según la copia.
+   Devuelve false si NO debe ir a la cola (solo VOTACIÓN: no vota aquí). */
+function avisoLocal(id, doc) {
+  if (!window.COPIA) return { c: undefined };
+  const c = doc ? COPIA.buscarDoc(doc) : (/^JP/.test(id) ? COPIA.buscarQr(id) : undefined);
+  return { c };
+}
+
+/* Propio de VOTACIÓN: no hay registros nuevos que subir con botón */
+const SR_TEXTOS = { extraSi: '', extraNo: '' };
+function duenoPendientes() { return 'voto'; }
+function abrirPendientes() {}
+function pintarBotonesRed() {}
+function pintarNuevos() {}
+
 async function initApp() {
   if (typeof APP_VERSION !== 'undefined' && APP_VERSION) { APP_VERSION_LOADED = String(APP_VERSION); paintVersion(APP_VERSION_LOADED); }
   checkVersion(); setInterval(checkVersion, 60000);
@@ -796,6 +977,7 @@ async function initApp() {
      modo recordado, total EN VIVO y lectores precargados para usar sin señal */
   try { SCAN.lote = localStorage.getItem(nsKey('esc_modo')) === 'lote' && !!window.JPLOTE; } catch (e) {}
   colaIniciar();
+  sinRedIniciar();
   vivoConectar();
   precargarLectores();
   render();

@@ -21,6 +21,9 @@
  *  · Medición de pantalla: ms de cada llamada y KB, en memoria (RED.medidas()).
  *  · 12/10/2026 · Fase 3: quien guarda su propia cola (el escáner) puede pasar
  *    {rid} fijo (se conserva en cada reintento), {reintentos} y {tiempo}.
+ *  · 12/10/2026 · Fase 4: pub.paquete es lectura; una lectura {persistente}
+ *    ya no se corta al cambiar de vista mientras está en vuelo (antes solo
+ *    se respetaba en la cola de fondo).
  * ============================================================================ */
 (function (raiz) {
   'use strict';
@@ -46,7 +49,13 @@
    'pub.liderServicios pub.liderCompromisos pub.liderSolicitudes pub.casa pub.emergencia ' +
    'priv.permCatalogo priv.configList priv.cfgPuestos priv.cfgPuestoImpacto priv.botEstado priv.botBlacklist ' +
    'priv.balances priv.liderBuscarDoc priv.liderAhijados priv.liderActivarInfo priv.iaEstado priv.iaModelos ' +
-   'priv.vozEstado priv.vozVoces priv.contactoBuscar')
+   'priv.vozEstado priv.vozVoces priv.contactoBuscar pub.paquete ' +
+   /* 07/11/2026: Solicitudes y Gestiones (lectura) */
+   'pub.misGestiones ' +
+   /* 08/11/2026: pendientes sin conexión (revisar documentos, solo lectura) */
+   'pub.liderPendRevisar priv.bdPendRevisar ' +
+   /* 08/11/2026 (2): copia local del escáner sin conexión (lectura, POST con la clave) */
+   'esc.copia')
     .split(/\s+/).forEach(function (a) { if (a) LECTURAS[a] = true; });
 
   var T_LECTURA = 30000, T_ESCRITURA = 60000;
@@ -177,7 +186,7 @@
     /* Herencia: misma lectura en vuelo → se adopta en la vista actual */
     if (lectura && vuelo[clave]) { vuelo[clave].gen = gen; return vuelo[clave].prom.then(revisarSesion); }
 
-    var ent = { gen: gen, ctrl: null, lectura: lectura };
+    var ent = { gen: gen, ctrl: null, lectura: lectura, persistente: !!op.persistente };
     var opInt = { accion: accion, lectura: lectura, rid: rid, fetchInit: fetchInit, ent: ent, ridDado: !!op.rid, reintentos: op.reintentos, tiempo: op.tiempo };
     var correr = function () { return ejecutar(url, opInt); };
 
