@@ -164,7 +164,7 @@ body {
 .ios-steps { text-align: left; font-size: .9rem; line-height: 1.7; color: var(--muted); padding-left: 20px; margin: 4px 0; }
 .ios-steps-wrap { text-align: left; margin-top: 4px; }
 .brand-banner { display: block; margin: 20px auto 4px; width: 200px; max-width: 70%; height: auto; border-radius: 10px; }
-.app-version-line { text-align: center; margin-top: 8px; font-size: .72rem; color: var(--muted); opacity: .7; }
+.app-version-line { text-align: center; margin-top: 8px; font-size: .72rem; color: var(--muted); }
 
 /* ---------- Modal ---------- */
 .scrim { position: fixed; inset: 0; z-index: 60; background: rgba(var(--brand-900-rgb),.45); backdrop-filter: blur(2px); }
