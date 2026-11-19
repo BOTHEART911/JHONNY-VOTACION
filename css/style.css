@@ -4,14 +4,14 @@
    que esta app usa de verdad. Color: tokens --brand* del :root.
    ============================================================ */
 :root {
-  --brand: #007BFF;
+  --brand: #0063D8;   /* Marcador 18/11/2026: azul de acción (pasa 4,5:1 con blanco). El #007BFF de la marca queda en --brand-graf */
   --brand-700: #0056B3;
   --brand-900: #0A2540;
   --brand-050: #E7F1FF;
 
   /* FASE 0 · componentes RGB de la marca, para la paleta.
      Derivan del mismo color de arriba; si cambia el hex, cambian estos. */
-  --brand-rgb: 0,123,255;
+  --brand-rgb: 0,99,216;
   --brand-700-rgb: 0,86,179;
   --brand-900-rgb: 10,37,64;
 
@@ -19,19 +19,27 @@
   --surface: #FFFFFF;
   --line: #E3E9F2;
   --ink: #14223B;
-  --muted: #5B6B84;
+  --muted: #4B5B72;
   --danger: #D64545;
   --ok: #1E9E6A;
   --warn: #E08A00;
 
   --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px;
   --sh-1: 0 1px 2px rgba(16,36,30,.06), 0 2px 8px rgba(16,36,30,.05);
-  --sh-2: 0 8px 24px rgba(16,36,30,.12);
-  --sh-brand: 0 12px 30px rgba(var(--brand-700-rgb),.35);
+  --sh-2: 0 6px 18px rgba(10,37,64,.10);
+  --sh-brand: 0 1px 2px rgba(10,37,64,.10), 0 2px 6px rgba(10,37,64,.06);
 
   --font-display: 'Sora', system-ui, sans-serif;
   --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --maxw: 480px;
+  /* ---- Marcador (DESIGN.md · JHONNY_CORE) ---- */
+  --brand-graf: #007BFF;    /* azul de la marca, solo para gráficas y fondos grandes sin texto */
+  --noche: #0A2540;         /* tinta y fondo del marcador */
+  --pendiente: #C2410C;     /* lo que falta (naranja del hashtag, versión que pasa contraste) */
+  --pendiente-050: #FFF1E6; --pendiente-700: #9A3412;
+  --firme: #15803D;         /* firme / hecho (verde del aro del logo) */
+  --firme-050: #DCFCE7;   --firme-700: #166534;
+  --salida: cubic-bezier(.2,.8,.2,1);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 button, input { font: inherit; color: inherit; border: 0; background: none; }
@@ -53,7 +61,7 @@ body {
 .splash {
   position: fixed; inset: 0; z-index: 100;
   display: grid; place-content: center; gap: 14px; justify-items: center;
-  background: radial-gradient(120% 120% at 50% 0%, var(--brand) 0%, var(--brand-700) 70%);
+  background: var(--noche);   /* Marcador: fondo noche sólido */
   color: #fff; transition: opacity .5s ease;
 }
 .splash.hide { opacity: 0; pointer-events: none; }
@@ -61,7 +69,7 @@ body {
   width: 96px; height: 96px; object-fit: contain; border-radius: 24px; background: #fff; padding: 8px;
   box-shadow: 0 12px 30px rgba(0,0,0,.2); animation: pop .6s cubic-bezier(.2,.8,.2,1);
 }
-.splash-text { font-family: var(--font-display); font-weight: 600; opacity: .9; letter-spacing: .5px; }
+.splash-text { font-family: var(--font-display); font-weight: 600; letter-spacing: .5px; }
 
 /* ---------- App bar ---------- */
 .appbar {
@@ -105,16 +113,16 @@ body {
 .res {
   border-radius: var(--r-lg); padding: 16px; text-align: center;
   background: var(--surface); box-shadow: var(--sh-1);
-  border-left: 6px solid var(--line); transition: background .2s;
+  border: 2px solid var(--line); transition: background .2s;
 }
 .res-t { font-family: var(--font-display); font-weight: 800; font-size: 17px; letter-spacing: -.2px; }
 .res-s { font-size: 13px; color: var(--muted); margin-top: 4px; min-height: 18px; }
-.res-idle { border-left-color: var(--line); }
-.res-ok   { border-left-color: var(--ok);     background: #E9F8F1; }
+.res-idle { border-color: var(--line); }
+.res-ok   { border-color: var(--ok);     background: #E9F8F1; }
 .res-ok   .res-t { color: #147A52; }
-.res-warn { border-left-color: var(--warn);   background: #FFF4E0; }
+.res-warn { border-color: var(--warn);   background: #FFF4E0; }
 .res-warn .res-t { color: #9A5B00; }
-.res-err  { border-left-color: var(--danger); background: #FDEBEC; }
+.res-err  { border-color: var(--danger); background: #FDEBEC; }
 .res-err  .res-t { color: #B0332F; }
 .res.pop { animation: pop .28s cubic-bezier(.2,.8,.2,1); }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } to { transform: scale(1); opacity: 1; } }

@@ -21,7 +21,7 @@
 /* ---------- Botones: presión con resorte ---------- */
 .btn {
   transition:
-    transform .18s cubic-bezier(.34, 1.56, .64, 1),
+    transform .18s cubic-bezier(.2, .8, .2, 1),
     box-shadow .2s ease,
     background .2s ease;
 }
@@ -35,7 +35,7 @@
   transition:
     border-color .15s ease,
     box-shadow .15s ease,
-    transform .18s cubic-bezier(.34, 1.56, .64, 1);
+    transform .18s cubic-bezier(.2, .8, .2, 1);
 }
 .input:focus { transform: translateY(-1px); }
 

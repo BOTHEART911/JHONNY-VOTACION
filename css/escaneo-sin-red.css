@@ -31,7 +31,7 @@ textarea.input, .input.area { height: auto; min-height: 104px; padding: 12px 16p
 .nuevos-btn b { background: var(--brand); color: #fff; border-radius: 999px; padding: 1px 9px; margin-left: 6px; font-size: 12.5px; }
 
 /* Estado "pendiente" en la lista de lecturas */
-.lote-it.pend { border-left-color: #F59E0B; }
+.lote-it.pend { border-color: #F59E0B; }
 .lote-it.pend .lote-s { color: #92400E; }
 
 .sheet-lista { margin: 8px 0 0; padding-left: 18px; font-size: 14px; line-height: 1.5; }

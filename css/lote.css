@@ -65,7 +65,7 @@
   padding: 9px 12px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 5px solid var(--line);
+  border: 2px solid var(--line);
   border-radius: var(--r-sm);
   box-shadow: var(--sh-1);
   animation: loteEntra .22s ease both;
@@ -86,10 +86,10 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.lote-it.esperando { border-left-color: #B9C6D9; }
-.lote-it.ok        { border-left-color: var(--ok);     background: #F2FBF7; }
-.lote-it.ya        { border-left-color: var(--warn);   background: #FFFAF0; }
-.lote-it.malo      { border-left-color: var(--danger); background: #FEF4F5; }
+.lote-it.esperando { border-color: #B9C6D9; }
+.lote-it.ok        { border-color: var(--ok);     background: #F2FBF7; }
+.lote-it.ya        { border-color: var(--warn);   background: #FFFAF0; }
+.lote-it.malo      { border-color: var(--danger); background: #FEF4F5; }
 
 .lote-vacia {
   padding: 16px 12px;
@@ -104,7 +104,7 @@
 .lote-cinta b { font-family: var(--font-display); font-weight: 800; }
 .lote-cinta.sin-senal { background: #FEF4F5; border-color: #F6C9CE; color: #8A1C27; }
 .lote-cinta.sin-senal .lote-pend { color: #8A1C27; }
-.lote-it.fuera { border-left-color: var(--danger); background: #FEF4F5; }
+.lote-it.fuera { border-color: var(--danger); background: #FEF4F5; }
 
 /* Total EN VIVO en la barra (botón: abre el rendimiento del equipo) */
 .appbar .cnt-vivo {
